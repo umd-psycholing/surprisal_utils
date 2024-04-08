@@ -26,10 +26,10 @@ IMPORTANT: this function assumes that each row of the surprisal df has predictor
  associated with the same word as the RT data, and the RT data has values to exclude (marked under an `exclude` column).
  See the next function to generate the exclude value for an RT dataset (following Goodkind & Bicknell)
 """
-def merge_with_rt_data(surprisal_df : pd.DataFrame, rt_data : pd.DataFrame, predictor_name: str):
+def merge_with_rt_data(surprisal_df : pd.DataFrame, rt_data : pd.DataFrame, predictor_name: str, frequency_file : str):
     rt_data['surprisal'] = surprisal_df[predictor_name]
     rt_data['word_length'] = word_length(rt_data, 'token')
-    rt_data = join_log_freq('/fs/clip-psych/sathvik/reading_time_data/word_freqs.txt', rt_data)
+    rt_data = join_log_freq(frequency_file, rt_data)
     rt_data = prev_token_predictors(rt_data, 3)
     rt_data = rt_data[rt_data['exclude'] == 0].dropna()
     return rt_data
