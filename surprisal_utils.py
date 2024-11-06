@@ -1,5 +1,9 @@
-import pandas as pd
 import string
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+from wordfreq import word_frequency
 
 def clean_str(token):
     return token.replace('[^\w\s]','').replace(",", "").replace(".", "").lower()
@@ -8,9 +12,16 @@ def clean_str(token):
 def word_length(rt_data: pd.DataFrame, token_col: str):
     return rt_data.apply(lambda row: len(row[token_col]), axis = 1)
 
-def join_log_freq(filepath: str, rt_data: pd.DataFrame):
-    freq_table = pd.read_table(filepath, delim_whitespace=True, names=('prob', 'word', 'backoff_weight'))
-    rt_data = rt_data.merge(freq_table[['prob', 'word']], how = 'left', left_on = 'token', right_on = 'word')
+def compute_log_frequency(word, language):
+    freq = word_frequency(word, language)
+    return np.log2(freq)
+
+def join_log_freq(rt_data: pd.DataFrame, from_file : bool, lang : Optional[str], filepath : Optional[str]):
+    if from_file:
+        freq_table = pd.read_table(filepath, delim_whitespace=True, names=('prob', 'word', 'backoff_weight'))
+        rt_data = rt_data.merge(freq_table[['prob', 'word']], how = 'left', left_on = 'token', right_on = 'word')
+    else:
+        rt_data['token'].apply(compute_log_frequency, language = lang)
     rt_data.rename(columns={'prob': 'log_freq'}, inplace = True)
     return rt_data
 
@@ -26,11 +37,15 @@ IMPORTANT: this function assumes that each row of the surprisal df has predictor
  associated with the same word as the RT data, and the RT data has values to exclude (marked under an `exclude` column).
  See the next function to generate the exclude value for an RT dataset (following Goodkind & Bicknell)
 """
-def merge_with_rt_data(surprisal_df : pd.DataFrame, rt_data : pd.DataFrame, predictor_name: str, frequency_file : str):
+def merge_with_rt_data(surprisal_df : pd.DataFrame, rt_data : pd.DataFrame, predictor_name: str, spillover_count : int,
+                       frequency_file : Optional[str], language : Optional[str]):
     rt_data['surprisal'] = surprisal_df[predictor_name]
     rt_data['word_length'] = word_length(rt_data, 'token')
-    rt_data = join_log_freq(frequency_file, rt_data)
-    rt_data = prev_token_predictors(rt_data, 3)
+    if frequency_file:
+        rt_data = join_log_freq(rt_data, True, filepath=frequency_file)
+    else:
+        rt_data = join_log_freq(rt_data, False, language = language)
+    rt_data = prev_token_predictors(rt_data, spillover_count)
     rt_data = rt_data[rt_data['exclude'] == 0].dropna()
     return rt_data
 
